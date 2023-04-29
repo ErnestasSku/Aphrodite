@@ -6,3 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+cairo = "0.0.4"
+image = "0.24.6"
+smithay = "0.3.0"
