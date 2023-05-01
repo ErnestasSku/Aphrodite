@@ -35,6 +35,8 @@ dependencies = [
  "image",
  "smithay",
  "smithay-client-toolkit 0.17.0",
+ "wayland-client 0.30.1",
+ "wayland-protocols 0.30.0",
 ]
 
 [[package]]
