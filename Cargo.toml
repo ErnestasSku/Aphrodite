@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 cairo = "0.0.4"
 image = "0.24.6"
-smithay = "0.3.0"
+smithay = {version = "0.3.0", features=["backend_winit", "renderer_gl", "wayland_frontend"]}
+smithay-client-toolkit = "0.17.0"
