@@ -9,7 +9,7 @@ use smithay_client_toolkit::{
     registry_handlers,
     seat::SeatState,
     shell::{
-        wlr_layer::{Layer, LayerShell, LayerShellHandler, Anchor, LayerSurface},
+        wlr_layer::{Anchor, Layer, LayerShell, LayerShellHandler, LayerSurface},
         xdg::{
             window::{Window, WindowDecorations, WindowHandler},
             XdgShell,
@@ -34,15 +34,15 @@ struct App {}
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let connection = Connection::connect_to_env().unwrap();
     let (globals, mut event_queue) = registry_queue_init(&connection).unwrap();
-    
+
     let qh = event_queue.handle();
-    
+
     let compositor = CompositorState::bind(&globals, &qh).expect("wl_compositor is not available");
     let layer_shell = LayerShell::bind(&globals, &qh).expect("Layer shell is no available");
     let shm = Shm::bind(&globals, &qh).expect("wl shm is not available");
-    
+
     let wp_viewporter = SimpleGlobal::<wp_viewporter::WpViewporter, 1>::bind(&globals, &qh)
-    .expect("wp_viewporter not available");
+        .expect("wp_viewporter not available");
 
     let mut windows: Vec<Window> = Vec::new();
     let mut layers = Vec::new();
@@ -64,20 +64,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let surface = compositor.create_surface(&qh);
         let layer =
             layer_shell.create_layer_surface(&qh, surface, Layer::Background, Some("Sample"), None);
-        layer.set_anchor(Anchor::TOP);
+        layer.set_exclusive_zone(-1);
+
+        // layer.set_opaque_region(region)
+
+        // layer.set_anchor(Anchor::);
 
         layer.set_size(image.width(), image.height());
         layer.commit();
 
-        
         layers.push(BackgroundLayer {
             width: image.width(),
             height: image.height(),
             layer,
             image,
             first_configure: true,
-            damaged: true
-            
+            damaged: true,
         });
     }
 
@@ -89,7 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         shm,
         pool,
         // windows,
-        layers
+        layers,
     };
 
     loop {
@@ -190,7 +192,6 @@ impl OutputHandler for State {
     }
 }
 
-
 impl ShmHandler for State {
     fn shm_state(&mut self) -> &mut Shm {
         &mut self.shm
@@ -250,7 +251,7 @@ delegate_xdg_shell!(State);
 // delegate_xdg_window!(State);
 delegate_layer!(State);
 
-delegate_simple!(State, WpViewporter, 1);
+delegate_simple!(State, WpViewporter, 4);
 
 delegate_registry!(State);
 
@@ -261,8 +262,6 @@ impl ProvidesRegistryState for State {
 
     registry_handlers!(OutputState);
 }
-
-
 
 impl Dispatch<WpViewport, ()> for State {
     fn event(
@@ -298,7 +297,7 @@ impl LayerShellHandler for State {
     ) {
         // todo!()
         for l in &mut self.layers {
-            if l.layer != *layer { 
+            if l.layer != *layer {
                 continue;
             }
 
@@ -306,12 +305,11 @@ impl LayerShellHandler for State {
                 (width, height) => {
                     l.width = width;
                     l.height = height;
-    
                 }
                 _ => {
                     l.height = l.image.height();
                     l.width = l.image.width();
-                },
+                }
             }
             l.first_configure = false;
         }
@@ -324,4 +322,3 @@ impl Drop for ImageViewer {
         self.viewport.destroy()
     }
 }
-
