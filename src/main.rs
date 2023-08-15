@@ -1,148 +1,147 @@
-use std::{env, path::Path};
-
+use raw_window_handle::{
+    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
+    WaylandDisplayHandle, WaylandWindowHandle,
+};
+use smithay::reexports::wayland_protocols::viewporter::client::wp_viewport::WpViewport;
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
-    delegate_compositor, delegate_layer, delegate_output, delegate_registry, delegate_shm,
-    delegate_simple, delegate_xdg_shell, delegate_xdg_window,
+    delegate_compositor, delegate_layer, delegate_output, delegate_registry, delegate_seat,
+    delegate_xdg_shell, delegate_xdg_window,
     output::{OutputHandler, OutputState},
-    registry::{ProvidesRegistryState, RegistryState, SimpleGlobal},
+    registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
-    seat::SeatState,
+    seat::{Capability, SeatHandler, SeatState},
     shell::{
-        wlr_layer::{Anchor, Layer, LayerShell, LayerShellHandler, LayerSurface},
+        wlr_layer::{Layer, LayerShell, LayerShellHandler, LayerSurface},
         xdg::{
-            window::{Window, WindowDecorations, WindowHandler},
+            window::{Window, WindowConfigure, WindowDecorations, WindowHandler},
             XdgShell,
         },
         WaylandSurface,
     },
-    shm::{slot::SlotPool, Shm, ShmHandler},
 };
-use wayland_client::{
-    globals::registry_queue_init,
-    protocol::{wl_output, wl_shm, wl_surface},
-    Connection, Dispatch, QueueHandle,
-};
+use wayland_client::{globals::registry_queue_init, Connection, Proxy, QueueHandle, Dispatch};
 
-use wayland_protocols::wp::viewporter::client::{
-    wp_viewport::{self, WpViewport},
-    wp_viewporter::{self, WpViewporter},
-};
+fn main() {
+    env_logger::init();
 
-struct App {}
+    let conn = Connection::connect_to_env().unwrap();
+    let (globals, mut event_queue) = registry_queue_init(&conn).unwrap();
+    let qh: QueueHandle<Wgpu> = event_queue.handle();
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let connection = Connection::connect_to_env().unwrap();
-    let (globals, mut event_queue) = registry_queue_init(&connection).unwrap();
+    let compositor_state =
+        CompositorState::bind(&globals, &qh).expect("wl_compositor not available");
+    // let xdg_shell_state = XdgShell::bind(&globals, &qh).expect("xdg shell not available");
+    let layer_shell = LayerShell::bind(&globals, &qh).expect("layer shell not available");
 
-    let qh = event_queue.handle();
+    let surface = compositor_state.create_surface(&qh);
+    //In example this is a window
+    let layer =
+        layer_shell.create_layer_surface(&qh, surface, Layer::Bottom, Some("aphrodite"), None);
 
-    let compositor = CompositorState::bind(&globals, &qh).expect("wl_compositor is not available");
-    let layer_shell = LayerShell::bind(&globals, &qh).expect("Layer shell is no available");
-    let shm = Shm::bind(&globals, &qh).expect("wl shm is not available");
+    layer.set_size(256, 256);
+    layer.commit();
 
-    let wp_viewporter = SimpleGlobal::<wp_viewporter::WpViewporter, 1>::bind(&globals, &qh)
-        .expect("wp_viewporter not available");
+    // Initialize wgpu
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::all(),
+        dx12_shader_compiler: Default::default(),
+    });
 
-    let mut windows: Vec<Window> = Vec::new();
-    let mut layers = Vec::new();
-    let mut pool_size = 0;
-    for path in env::args_os().skip(1) {
-        let image = match image::open(&path) {
-            Ok(i) => i,
-            Err(e) => {
-                println!("Failed to open image {}.", path.to_string_lossy());
-                println!("Error was: {e:?}");
-                panic!();
-                // return;
+    let handle = {
+        let mut handle = WaylandDisplayHandle::empty();
+        handle.display = conn.backend().display_ptr() as *mut _;
+        let display_handle = RawDisplayHandle::Wayland(handle);
+
+        let mut handle = WaylandWindowHandle::empty();
+        handle.surface = layer.wl_surface().id().as_ptr() as *mut _;
+        let layer_handle = RawWindowHandle::Wayland(handle);
+        // let mut handle = WaylandWindowHandle::empty();
+        // handle.surface =
+
+        struct BadIdea(RawDisplayHandle, RawWindowHandle);
+
+        unsafe impl HasRawDisplayHandle for BadIdea {
+            fn raw_display_handle(&self) -> RawDisplayHandle {
+                self.0
             }
-        };
+        }
 
-        let image = image.to_rgba8();
-        pool_size += image.width() * image.height() * 4;
+        unsafe impl HasRawWindowHandle for BadIdea {
+            fn raw_window_handle(&self) -> RawWindowHandle {
+                self.1
+            }
+        }
 
-        let surface = compositor.create_surface(&qh);
-        let layer =
-            layer_shell.create_layer_surface(&qh, surface, Layer::Background, Some("Sample"), None);
-        layer.set_exclusive_zone(-1);
-
-        // layer.set_opaque_region(region)
-
-        // layer.set_anchor(Anchor::);
-
-        layer.set_size(image.width(), image.height());
-        layer.commit();
-
-        layers.push(BackgroundLayer {
-            width: image.width(),
-            height: image.height(),
-            layer,
-            image,
-            first_configure: true,
-            damaged: true,
-        });
-    }
-
-    let pool = SlotPool::new(pool_size as usize, &shm).unwrap();
-
-    let mut state = State {
-        registry_state: RegistryState::new(&globals),
-        output_state: OutputState::new(&globals, &qh),
-        shm,
-        pool,
-        // windows,
-        layers,
+        BadIdea(display_handle, layer_handle)
     };
 
-    loop {
-        event_queue.blocking_dispatch(&mut state).unwrap();
+    let surface = unsafe { instance.create_surface(&handle).unwrap() };
 
-        if state.layers.is_empty() {
+    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptionsBase {
+        compatible_surface: Some(&surface),
+        ..Default::default()
+    }))
+    .expect("Failed to get adapter");
+
+    let (device, queue) = pollster::block_on(adapter.request_device(&Default::default(), None))
+        .expect("Failed to get device");
+
+    let mut wgpu = Wgpu {
+        registry_state: RegistryState::new(&globals),
+        seat_state: SeatState::new(&globals, &qh),
+        output_state: OutputState::new(&globals, &qh),
+
+        exit: false,
+        width: 256,
+        height: 256,
+        layer,
+        device,
+        surface,
+        adapter,
+        queue,
+    };
+
+    println!("starting loop");
+    loop {
+        let a = event_queue.blocking_dispatch(&mut wgpu).unwrap();
+        println!("A => {a:?}");
+
+
+        if wgpu.exit {
+            println!("Exiting");
             break;
         }
     }
 
-    Ok(())
+    drop(wgpu.surface);
+    drop(wgpu.layer);
 }
 
-struct State {
+struct Wgpu {
     registry_state: RegistryState,
-    // seat_state: SeatState,
+    seat_state: SeatState,
     output_state: OutputState,
-    shm: Shm,
 
-    // wp_viewporter: SimpleGlobal<WpViewporter, 1>,
-    pool: SlotPool,
-    // windows: Vec<ImageViewer>,
-    layers: Vec<BackgroundLayer>,
-}
-
-struct BackgroundLayer {
+    exit: bool,
+    width: u32,
+    height: u32,
     layer: LayerSurface,
-    image: image::RgbaImage,
-    width: u32,
-    height: u32,
-    first_configure: bool,
-    damaged: bool,
+    // layer: Layer,
+    // window: Window
+    adapter: wgpu::Adapter,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    surface: wgpu::Surface,
 }
 
-struct ImageViewer {
-    window: Window,
-    image: image::RgbaImage,
-    viewport: WpViewport,
-    width: u32,
-    height: u32,
-    first_configure: bool,
-    damaged: bool,
-}
-
-impl CompositorHandler for State {
+impl CompositorHandler for Wgpu {
     fn scale_factor_changed(
         &mut self,
-        _conn: &Connection,
-        _qh: &wayland_client::QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
-        _new_factor: i32,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        surface: &wayland_client::protocol::wl_surface::WlSurface,
+        new_factor: i32,
     ) {
         // todo!()
     }
@@ -150,16 +149,20 @@ impl CompositorHandler for State {
     fn frame(
         &mut self,
         conn: &Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
-        _time: u32,
+        qh: &QueueHandle<Self>,
+        surface: &wayland_client::protocol::wl_surface::WlSurface,
+        time: u32,
     ) {
-        println!("Frame compositor handler");
-        self.draw(conn, qh);
+        println!("Frame exists {time:?}");
+        // todo!()
     }
 }
 
-impl OutputHandler for State {
+impl OutputHandler for Wgpu {
+    // fn output_state(&mut self) -> &mut OutputState {
+    //     // todo!()
+    // }
+
     fn output_state(&mut self) -> &mut OutputState {
         &mut self.output_state
     }
@@ -167,8 +170,8 @@ impl OutputHandler for State {
     fn new_output(
         &mut self,
         conn: &Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        output: wl_output::WlOutput,
+        qh: &QueueHandle<Self>,
+        output: wayland_client::protocol::wl_output::WlOutput,
     ) {
         // todo!()
     }
@@ -176,8 +179,8 @@ impl OutputHandler for State {
     fn update_output(
         &mut self,
         conn: &Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        output: wl_output::WlOutput,
+        qh: &QueueHandle<Self>,
+        output: wayland_client::protocol::wl_output::WlOutput,
     ) {
         // todo!()
     }
@@ -185,140 +188,162 @@ impl OutputHandler for State {
     fn output_destroyed(
         &mut self,
         conn: &Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        output: wl_output::WlOutput,
+        qh: &QueueHandle<Self>,
+        output: wayland_client::protocol::wl_output::WlOutput,
     ) {
         // todo!()
     }
 }
 
-impl ShmHandler for State {
-    fn shm_state(&mut self) -> &mut Shm {
-        &mut self.shm
-    }
-}
-
-impl State {
-    pub fn draw(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>) {
-        // todo!()
-        for viewer in &mut self.layers {
-            if viewer.first_configure || !viewer.damaged {
-                continue;
-            }
-            let window = &viewer.layer;
-            let width = viewer.image.width();
-            let height = viewer.image.height();
-            let stride = width as i32 * 4;
-
-            let (buffer, canvas) = self
-                .pool
-                .create_buffer(
-                    width as i32,
-                    height as i32,
-                    stride,
-                    wl_shm::Format::Argb8888,
-                )
-                .expect("create buffer");
-
-            for (pixel, argb) in viewer.image.pixels().zip(canvas.chunks_exact_mut(4)) {
-                argb[3] = pixel.0[3];
-                argb[2] = pixel.0[0];
-                argb[1] = pixel.0[1];
-                argb[0] = pixel.0[2];
-            }
-
-            window
-                .wl_surface()
-                .damage_buffer(0, 0, viewer.width as i32, viewer.height as i32);
-            viewer.damaged = false;
-
-            window.wl_surface().frame(_qh, window.wl_surface().clone());
-            // viewer
-            //     .layer
-            //     .set_source(0.0, 0.0, viewer.width as f64, viewer.height as f64);
-
-            buffer.attach_to(window.wl_surface()).unwrap();
-            window.wl_surface().commit();
-        }
-    }
-}
-
-delegate_compositor!(State);
-delegate_output!(State);
-delegate_shm!(State);
-
-delegate_xdg_shell!(State);
-// delegate_xdg_window!(State);
-delegate_layer!(State);
-
-delegate_simple!(State, WpViewporter, 4);
-
-delegate_registry!(State);
-
-impl ProvidesRegistryState for State {
-    fn registry(&mut self) -> &mut RegistryState {
-        &mut self.registry_state
+impl SeatHandler for Wgpu {
+    fn seat_state(&mut self) -> &mut SeatState {
+        todo!()
     }
 
-    registry_handlers!(OutputState);
-}
-
-impl Dispatch<WpViewport, ()> for State {
-    fn event(
-        _state: &mut Self,
-        _proxy: &WpViewport,
-        _event: <WpViewport as wayland_client::Proxy>::Event,
-        _data: &(),
-        _conn: &Connection,
-        _qhandle: &QueueHandle<Self>,
-    ) {
-        // todo!()
-        unreachable!("wp_viewport::Event is empty in version 1")
-    }
-}
-
-impl LayerShellHandler for State {
-    fn closed(
+    fn new_seat(
         &mut self,
         conn: &Connection,
         qh: &QueueHandle<Self>,
-        layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface,
+        seat: wayland_client::protocol::wl_seat::WlSeat,
     ) {
-        self.layers.retain(|v| v.layer != *layer);
+        // todo!()
+    }
+
+    fn new_capability(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        seat: wayland_client::protocol::wl_seat::WlSeat,
+        capability: Capability,
+    ) {
+        // todo!()
+    }
+
+    fn remove_capability(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        seat: wayland_client::protocol::wl_seat::WlSeat,
+        capability: Capability,
+    ) {
+        // todo!()
+    }
+
+    fn remove_seat(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        seat: wayland_client::protocol::wl_seat::WlSeat,
+    ) {
+        // todo!()
+    }
+}
+
+impl LayerShellHandler for Wgpu {
+    fn closed(&mut self, conn: &Connection, qh: &QueueHandle<Self>, layer: &LayerSurface) {
+        // todo!()
+        self.exit = true;
     }
 
     fn configure(
         &mut self,
         conn: &Connection,
         qh: &QueueHandle<Self>,
-        layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface,
+        layer: &LayerSurface,
         configure: smithay_client_toolkit::shell::wlr_layer::LayerSurfaceConfigure,
         serial: u32,
     ) {
+        println!("CONFIGURE from layer shell");
         // todo!()
-        for l in &mut self.layers {
-            if l.layer != *layer {
-                continue;
-            }
+        let (new_width, new_height) = configure.new_size;
+        // self.width = new_width.map_or(256, |v| v.get());
+        // self.height = new_height.map_or(256, |v| v.get());
 
-            match configure.new_size {
-                (width, height) => {
-                    l.width = width;
-                    l.height = height;
-                }
-                _ => {
-                    l.height = l.image.height();
-                    l.width = l.image.width();
-                }
-            }
-            l.first_configure = false;
+        self.width = if new_width < 256 {256} else {new_width};
+        self.height = if new_height < 256 {256} else {new_height};
+
+        let adapter = &self.adapter;
+        let surface = &self.surface;
+        let device = &self.device;
+        let queue = &self.queue;
+
+        let cap = surface.get_capabilities(&adapter);
+        let surface_config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: cap.formats[0],
+            view_formats: vec![cap.formats[0]],
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            width: self.width,
+            height: self.height,
+            present_mode: wgpu::PresentMode::Fifo,
+        };
+
+        surface.configure(&self.device, &surface_config);
+
+        let surface_texture = surface
+            .get_current_texture()
+            .expect("faield to acquire next swapchain texture");
+        // let texture_view = surface_texture
+        // .texture
+        // .create_view(&wgpu::TextureViewDescriptor::default(&wgpu::TextureViewDescriptor::default()));
+
+        let texture_view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut ecnoder = device.create_command_encoder(&Default::default());
+        {
+            let _renderpass = ecnoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &texture_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+                        store: true,
+                    },
+                })],
+                depth_stencil_attachment: None,
+            });
         }
-        self.draw(conn, qh);
+
+        queue.submit(Some(ecnoder.finish()));
+        surface_texture.present();
+        self.layer.wl_surface().commit();
     }
 }
 
-impl Drop for ImageViewer {
-    fn drop(&mut self) {
-        self.viewport.destroy()
+delegate_compositor!(Wgpu);
+delegate_output!(Wgpu);
+
+delegate_seat!(Wgpu);
+
+delegate_xdg_shell!(Wgpu);
+// delegate_xdg_window!(Wgpu);
+delegate_layer!(Wgpu);
+
+delegate_registry!(Wgpu);
+
+impl ProvidesRegistryState for Wgpu {
+    fn registry(&mut self) -> &mut RegistryState {
+        //
+        &mut self.registry_state
     }
+
+    registry_handlers![OutputState];
 }
+
+
+// impl Dispatch<WpViewport, ()> for Wgpu {
+//     fn event(
+//         state: &mut Self,
+//         proxy: &WpViewport,
+//         event: <WpViewport as wayland_client::Proxy>::Event,
+//         data: &(),
+//         conn: &Connection,
+//         qhandle: &QueueHandle<Self>,
+//     ) {
+//         // todo!()
+//         unreachable!("no fucking clue")
+//     }
+// }
