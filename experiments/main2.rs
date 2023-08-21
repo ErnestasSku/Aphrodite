@@ -188,6 +188,7 @@ impl OutputHandler for State {
         qh: &wayland_client::QueueHandle<Self>,
         output: wl_output::WlOutput,
     ) {
+        println!("update_output");
         // todo!()
     }
 
