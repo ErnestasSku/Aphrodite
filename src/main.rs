@@ -1,6 +1,15 @@
+use EngineCore::connection::EngineEnvironment;
+use color_eyre::eyre::Result;
+
+mod EngineCore;
 
 
-fn main() {
+fn main() -> Result<()> {
+    env_logger::init();
+    color_eyre::install()?;
 
-    println!("Starting again")
+    let engine = EngineCore::engine::Engine::connect(EngineCore::connection::ConnectionMode::Shell);
+
+
+    Ok(())
 }

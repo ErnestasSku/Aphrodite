@@ -56,8 +56,6 @@ fn main() {
         let mut handle = WaylandWindowHandle::empty();
         handle.surface = layer.wl_surface().id().as_ptr() as *mut _;
         let layer_handle = RawWindowHandle::Wayland(handle);
-        // let mut handle = WaylandWindowHandle::empty();
-        // handle.surface =
 
         struct BadIdea(RawDisplayHandle, RawWindowHandle);
 
