@@ -139,6 +139,7 @@ pub struct EngineShell {
     pub exit: bool,
 }
 
+#[allow(dead_code)]
 struct EngineSHM {
     core: EngineCore,
 }
