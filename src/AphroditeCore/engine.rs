@@ -73,6 +73,61 @@ impl EngineCore {
             surface: surface_owned,
         }
     }
+
+    pub fn configure(&mut self) {
+        let width = 500;
+        let height = 500;
+
+        let adapter = &self.adapter;
+        let surface = self.surface.as_ref().unwrap();
+        let device = &self.device;
+        let queue = &self.queue;
+
+        let cap = surface.get_capabilities(&adapter);
+        let surface_config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: cap.formats[0],
+            view_formats: vec![cap.formats[0]],
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            width: width,
+            height: height,
+            present_mode: wgpu::PresentMode::Fifo,
+        };
+
+        surface.configure(&device, &surface_config);
+    }
+
+    pub fn render(&self) {
+        let surface_texture = self
+            .surface
+            .as_ref()
+            .unwrap()
+            .get_current_texture()
+            .expect("faield to acquire next swapchain texture");
+
+        let texture_view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut ecnoder = self.device.create_command_encoder(&Default::default());
+        {
+            let _renderpass = ecnoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &texture_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+                        store: true,
+                    },
+                })],
+                depth_stencil_attachment: None,
+            });
+        }
+
+        self.queue.submit(Some(ecnoder.finish()));
+        surface_texture.present();
+    }
 }
 
 pub struct EngineShell {
@@ -201,61 +256,13 @@ impl LayerShellHandler for EngineShell {
     ) {
         println!("Configure from shell");
 
+        self.core.configure();
+        self.core.render();
+        self.layer.wl_surface().commit();
+
         self.layer
             .wl_surface()
             .frame(qh, self.layer.wl_surface().clone());
-
-        let width = 500;
-        let height = 500;
-
-        let adapter = &self.core.adapter;
-        let surface = self.core.surface.as_ref().unwrap();
-        let device = &self.core.device;
-        let queue = &self.core.queue;
-
-        let cap = surface.get_capabilities(&adapter);
-        let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: cap.formats[0],
-            view_formats: vec![cap.formats[0]],
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
-            width: width,
-            height: height,
-            present_mode: wgpu::PresentMode::Fifo,
-        };
-
-        surface.configure(&device, &surface_config);
-
-        let surface_texture = surface
-            .get_current_texture()
-            .expect("faield to acquire next swapchain texture");
-
-        let texture_view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut ecnoder = device.create_command_encoder(&Default::default());
-        {
-            let _renderpass = ecnoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &texture_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
-                        store: true,
-                    },
-                })],
-                depth_stencil_attachment: None,
-            });
-        }
-
-
-        queue.submit(Some(ecnoder.finish()));
-        surface_texture.present();
-        self.layer.wl_surface().commit();
-        // self.process_frame();
-        // todo!()
     }
 }
 
