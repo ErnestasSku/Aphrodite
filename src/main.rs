@@ -1,13 +1,12 @@
-use AphroditeCore::engine::{EngineCore, DisplayHandle, EngineShell, self};
+use AphroditeCore::engine::{DisplayHandle, EngineShell};
 use color_eyre::eyre::Result;
 use raw_window_handle::{WaylandDisplayHandle, RawDisplayHandle, WaylandWindowHandle, RawWindowHandle};
 use smithay_client_toolkit::{compositor::CompositorState, shell::{wlr_layer::LayerShell, WaylandSurface}, registry::RegistryState, output::OutputState, seat::SeatState};
 use wayland_client::{Connection, globals::registry_queue_init, QueueHandle};
-// use wayland_backend::sys::client::Backend;
 use wayland_client::Proxy;
 use smithay_client_toolkit::shell::wlr_layer::Layer;
-use winit::event;
 
+#[allow(non_snake_case)] //TODO: temporary. fix this later
 mod AphroditeCore;
 
 

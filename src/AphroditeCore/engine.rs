@@ -6,7 +6,7 @@ use smithay_client_toolkit::{
     delegate_compositor, delegate_layer, delegate_output, delegate_registry, delegate_seat,
     delegate_xdg_shell,
     output::{OutputHandler, OutputState},
-    registry::{ProvidesRegistryState, RegistryHandler, RegistryState},
+    registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
     seat::{SeatHandler, SeatState},
     shell::{
@@ -81,7 +81,7 @@ impl EngineCore {
         let adapter = &self.adapter;
         let surface = self.surface.as_ref().unwrap();
         let device = &self.device;
-        let queue = &self.queue;
+        let _queue = &self.queue;
 
         let cap = surface.get_capabilities(&adapter);
         let surface_config = wgpu::SurfaceConfiguration {
@@ -146,20 +146,20 @@ struct EngineSHM {
 impl CompositorHandler for EngineShell {
     fn scale_factor_changed(
         &mut self,
-        conn: &wayland_client::Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        surface: &wayland_client::protocol::wl_surface::WlSurface,
-        new_factor: i32,
+        _conn: &wayland_client::Connection,
+        _qh: &wayland_client::QueueHandle<Self>,
+        _surface: &wayland_client::protocol::wl_surface::WlSurface,
+        _new_factor: i32,
     ) {
         // todo!()
     }
 
     fn frame(
         &mut self,
-        conn: &wayland_client::Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        surface: &wayland_client::protocol::wl_surface::WlSurface,
-        time: u32,
+        _conn: &wayland_client::Connection,
+        _qh: &wayland_client::QueueHandle<Self>,
+        _surface: &wayland_client::protocol::wl_surface::WlSurface,
+        _time: u32,
     ) {
         println!("Compositor frame");
         // todo!()
@@ -173,25 +173,25 @@ impl OutputHandler for EngineShell {
 
     fn new_output(
         &mut self,
-        conn: &wayland_client::Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        output: wayland_client::protocol::wl_output::WlOutput,
+        _conn: &wayland_client::Connection,
+        _qh: &wayland_client::QueueHandle<Self>,
+        _output: wayland_client::protocol::wl_output::WlOutput,
     ) {
     }
 
     fn update_output(
         &mut self,
-        conn: &wayland_client::Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        output: wayland_client::protocol::wl_output::WlOutput,
+        _conn: &wayland_client::Connection,
+        _qh: &wayland_client::QueueHandle<Self>,
+        _output: wayland_client::protocol::wl_output::WlOutput,
     ) {
     }
 
     fn output_destroyed(
         &mut self,
-        conn: &wayland_client::Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        output: wayland_client::protocol::wl_output::WlOutput,
+        _conn: &wayland_client::Connection,
+        _qh: &wayland_client::QueueHandle<Self>,
+        _output: wayland_client::protocol::wl_output::WlOutput,
     ) {
     }
 }
@@ -203,35 +203,35 @@ impl SeatHandler for EngineShell {
 
     fn new_seat(
         &mut self,
-        conn: &wayland_client::Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        seat: wayland_client::protocol::wl_seat::WlSeat,
+        _conn: &wayland_client::Connection,
+        _qh: &wayland_client::QueueHandle<Self>,
+        _seat: wayland_client::protocol::wl_seat::WlSeat,
     ) {
     }
 
     fn new_capability(
         &mut self,
-        conn: &wayland_client::Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        seat: wayland_client::protocol::wl_seat::WlSeat,
-        capability: smithay_client_toolkit::seat::Capability,
+        _conn: &wayland_client::Connection,
+        _qh: &wayland_client::QueueHandle<Self>,
+        _seat: wayland_client::protocol::wl_seat::WlSeat,
+        _capability: smithay_client_toolkit::seat::Capability,
     ) {
     }
 
     fn remove_capability(
         &mut self,
-        conn: &wayland_client::Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        seat: wayland_client::protocol::wl_seat::WlSeat,
-        capability: smithay_client_toolkit::seat::Capability,
+        _conn: &wayland_client::Connection,
+        _qh: &wayland_client::QueueHandle<Self>,
+        _seat: wayland_client::protocol::wl_seat::WlSeat,
+        _capability: smithay_client_toolkit::seat::Capability,
     ) {
     }
 
     fn remove_seat(
         &mut self,
-        conn: &wayland_client::Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        seat: wayland_client::protocol::wl_seat::WlSeat,
+        _conn: &wayland_client::Connection,
+        _qh: &wayland_client::QueueHandle<Self>,
+        _seat: wayland_client::protocol::wl_seat::WlSeat,
     ) {
     }
 }
@@ -239,20 +239,20 @@ impl SeatHandler for EngineShell {
 impl LayerShellHandler for EngineShell {
     fn closed(
         &mut self,
-        conn: &wayland_client::Connection,
-        qh: &wayland_client::QueueHandle<Self>,
-        layer: &LayerSurface,
+        _conn: &wayland_client::Connection,
+        _qh: &wayland_client::QueueHandle<Self>,
+        _layer: &LayerSurface,
     ) {
         // todo!()
     }
 
     fn configure(
         &mut self,
-        conn: &wayland_client::Connection,
+        _conn: &wayland_client::Connection,
         qh: &wayland_client::QueueHandle<Self>,
-        layer: &LayerSurface,
-        configure: smithay_client_toolkit::shell::wlr_layer::LayerSurfaceConfigure,
-        serial: u32,
+        _layer: &LayerSurface,
+        _configure: smithay_client_toolkit::shell::wlr_layer::LayerSurfaceConfigure,
+        _serial: u32,
     ) {
         println!("Configure from shell");
 
