@@ -15,6 +15,7 @@ use smithay_client_toolkit::{
     },
 };
 
+
 pub trait Engine {
     // fn init()
     fn process_frame(&self);
@@ -34,11 +35,19 @@ unsafe impl HasRawWindowHandle for DisplayHandle {
     }
 }
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 2],
+}
+
+
 pub struct EngineCore {
     pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub surface: Option<wgpu::Surface>,
+
 }
 
 impl EngineCore {
