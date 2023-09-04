@@ -16,6 +16,12 @@ use smithay_client_toolkit::{
     },
 };
 
+use super::texture;
+
+// use crate::texture;
+// mod texture;
+
+
 pub trait Engine {
     // fn init()
     fn process_frame(&self);
@@ -38,7 +44,7 @@ unsafe impl HasRawWindowHandle for DisplayHandle {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
-    position: [f32; 2],
+    position: [f32; 3],
     tex_coords: [f32; 2],
 }
 
@@ -94,9 +100,7 @@ pub struct Scene2DWrapper {
 
 pub struct SimpleImage {
     //position, offset
-    pub texture: wgpu::Texture,
-    pub view: wgpu::TextureView,
-    pub sampler: wgpu::Sampler,
+    pub texture: texture::Texture,
     pub bind_group: wgpu::BindGroup,
     pub vertex_buffer: wgpu::Buffer,
 }
@@ -280,6 +284,16 @@ impl EngineCore {
         surface_texture.present();
     }
 }
+
+
+const VERTICES: &[Vertex] = &[
+    Vertex { position: [-0.0868241, 0.49240386, 0.0], tex_coords: [0.4131759, 0.99240386], }, // A
+    Vertex { position: [-0.49513406, 0.06958647, 0.0], tex_coords: [0.0048659444, 0.56958647], }, // B
+    Vertex { position: [-0.21918549, -0.44939706, 0.0], tex_coords: [0.28081453, 0.05060294], }, // C
+    Vertex { position: [0.35966998, -0.3473291, 0.0], tex_coords: [0.85967, 0.1526709], }, // D
+    Vertex { position: [0.44147372, 0.2347359, 0.0], tex_coords: [0.9414737, 0.7347359], }, // E
+];
+ 
 
 pub struct EngineShell {
     pub registry_state: RegistryState,
