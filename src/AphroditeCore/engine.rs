@@ -15,7 +15,6 @@ use smithay_client_toolkit::{
     },
 };
 
-
 pub trait Engine {
     // fn init()
     fn process_frame(&self);
@@ -39,7 +38,9 @@ unsafe impl HasRawWindowHandle for DisplayHandle {
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
     position: [f32; 2],
+    tex_coords: [f32; 2],
 }
+
 
 
 pub struct EngineCore {
@@ -47,7 +48,61 @@ pub struct EngineCore {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub surface: Option<wgpu::Surface>,
+    pub scene: SceneType,
+}
 
+pub enum SceneType {
+    ImageBackground,
+    GifBackground,
+    Scene2D(Scene2DWrapper),
+    Scene3D,
+    None,
+}
+
+impl Default for SceneType {
+    fn default() -> Self {
+        SceneType::None
+    }
+}
+
+pub struct Scene2DWrapper {
+    // TODO: camera
+    pub images: Vec<SimpleImage>,
+}
+
+pub struct SimpleImage {
+    //position, offset
+    pub texture: wgpu::Texture,
+    pub view: wgpu::TextureView,
+    pub sampler: wgpu::Sampler,
+    pub bind_group: wgpu::BindGroup,
+    pub vertex_buffer: wgpu::Buffer,
+}
+
+impl SimpleImage {
+    pub fn get_image_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+            label: Some("Simple image"),
+        })
+    }
 }
 
 impl EngineCore {
@@ -80,6 +135,7 @@ impl EngineCore {
             device,
             queue,
             surface: surface_owned,
+            scene: Default::default(),
         }
     }
 
