@@ -1,3 +1,4 @@
+use color_eyre::config;
 use raw_window_handle::{
     HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
@@ -41,7 +42,27 @@ struct Vertex {
     tex_coords: [f32; 2],
 }
 
-
+impl Vertex {
+    fn desc() -> wgpu::VertexBufferLayout<'static> {
+        use std::mem;
+        wgpu::VertexBufferLayout {
+            array_stride: mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
+            ],
+        }
+    }
+}
 
 pub struct EngineCore {
     pub adapter: wgpu::Adapter,
@@ -49,6 +70,7 @@ pub struct EngineCore {
     pub queue: wgpu::Queue,
     pub surface: Option<wgpu::Surface>,
     pub scene: SceneType,
+    pub image_render_pipeline: wgpu::RenderPipeline,
 }
 
 pub enum SceneType {
@@ -118,11 +140,11 @@ impl EngineCore {
             None
         };
 
-        let surface = surface_owned.as_ref();
+        let surface = surface_owned.as_ref().unwrap();
 
         let adapter =
             pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptionsBase {
-                compatible_surface: surface,
+                compatible_surface: Some(surface),
                 ..Default::default()
             }))
             .expect("Failed to get adapter");
@@ -130,36 +152,100 @@ impl EngineCore {
         let (device, queue) = pollster::block_on(adapter.request_device(&Default::default(), None))
             .expect("Failed to get device");
 
-        Self {
-            adapter,
-            device,
-            queue,
-            surface: surface_owned,
-            scene: Default::default(),
-        }
-    }
-
-    pub fn configure(&mut self) {
-        let width = 500;
-        let height = 500;
-
-        let adapter = &self.adapter;
-        let surface = self.surface.as_ref().unwrap();
-        let device = &self.device;
-        let _queue = &self.queue;
-
         let cap = surface.get_capabilities(&adapter);
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: cap.formats[0],
             view_formats: vec![cap.formats[0]],
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
-            width: width,
-            height: height,
+            width: 500,  //TODO:
+            height: 500, //TODO:
             present_mode: wgpu::PresentMode::Fifo,
         };
 
         surface.configure(&device, &surface_config);
+
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Simple Image Renderer"),
+                bind_group_layouts: &[&SimpleImage::get_image_bind_group_layout(&device)],
+                push_constant_ranges: &[],
+            });
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Image shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("image.wgsl").into()),
+        });
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Simple Image Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[Vertex::desc()],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_config.format,
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent::REPLACE,
+                        alpha: wgpu::BlendComponent::REPLACE,
+                    }),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
+        Self {
+            adapter,
+            device,
+            queue,
+            surface: surface_owned,
+            scene: Default::default(),
+            image_render_pipeline: render_pipeline,
+        }
+    }
+
+    pub fn configure(&mut self) {
+        // let width = 500;
+        // let height = 500;
+
+        // let adapter = &self.adapter;
+        // let surface = self.surface.as_ref().unwrap();
+        // let device = &self.device;
+        // let _queue = &self.queue;
+
+        // let cap = surface.get_capabilities(&adapter);
+        // let surface_config = wgpu::SurfaceConfiguration {
+        //     usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        //     format: cap.formats[0],
+        //     view_formats: vec![cap.formats[0]],
+        //     alpha_mode: wgpu::CompositeAlphaMode::Auto,
+        //     width: width,
+        //     height: height,
+        //     present_mode: wgpu::PresentMode::Fifo,
+        // };
+
+        // surface.configure(&device, &surface_config);
     }
 
     pub fn render(&self) {
