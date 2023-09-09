@@ -283,6 +283,10 @@ impl EngineCore {
         self.queue.submit(Some(ecnoder.finish()));
         surface_texture.present();
     }
+
+    pub fn update() {
+        
+    }
 }
 
 
