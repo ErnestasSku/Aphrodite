@@ -8,6 +8,7 @@ use smithay_client_toolkit::shell::wlr_layer::Layer;
 
 #[allow(non_snake_case)] //TODO: temporary. fix this later
 mod AphroditeCore;
+mod windowed_mode;
 
 
 fn main() -> Result<()> {
