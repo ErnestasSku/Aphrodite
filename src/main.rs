@@ -1,4 +1,4 @@
-use AphroditeCore::engine::{DisplayHandle, EngineShell};
+use aphrodite_core::engine::{DisplayHandle, EngineShell};
 use color_eyre::eyre::Result;
 use raw_window_handle::{WaylandDisplayHandle, RawDisplayHandle, WaylandWindowHandle, RawWindowHandle};
 use smithay_client_toolkit::{compositor::CompositorState, shell::{wlr_layer::LayerShell, WaylandSurface}, registry::RegistryState, output::OutputState, seat::SeatState};
@@ -6,8 +6,7 @@ use wayland_client::{Connection, globals::registry_queue_init, QueueHandle};
 use wayland_client::Proxy;
 use smithay_client_toolkit::shell::wlr_layer::Layer;
 
-#[allow(non_snake_case)] //TODO: temporary. fix this later
-mod AphroditeCore;
+mod aphrodite_core;
 mod windowed_mode;
 
 
@@ -17,7 +16,7 @@ fn main() -> Result<()> {
 
     let conn = Connection::connect_to_env().unwrap();
     let (globals, mut event_queue) = registry_queue_init(&conn).unwrap();
-    let qh: QueueHandle<AphroditeCore::engine::EngineShell> = event_queue.handle();
+    let qh: QueueHandle<aphrodite_core::engine::EngineShell> = event_queue.handle();
 
 
     let compositor_state = 
@@ -42,7 +41,7 @@ fn main() -> Result<()> {
 
         Some(DisplayHandle(display_handle, layer_handle))
     };
-    let engine_core = AphroditeCore::engine::EngineCore::init_wgpu(display);
+    let engine_core = aphrodite_core::engine::EngineCore::init_wgpu(display);
 
     let mut engine_shell = EngineShell {
         core: engine_core,
