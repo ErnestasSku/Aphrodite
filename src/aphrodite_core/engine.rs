@@ -284,7 +284,7 @@ impl EngineCore {
         surface_texture.present();
     }
 
-    pub fn update() {
+    pub fn update(&self) {
         
     }
 }

@@ -16,14 +16,15 @@ pub async fn run() {
         window.raw_window_handle(),
     ));
 
-    let engine_core = EngineCore::init_wgpu(display);
+    let engine_core = EngineCore::init_wgpu(display_handle);
 
     event_loop.run(move |event, _, control_flow| {
-        match Event {
+        match event {
             Event::RedrawRequested(window_id) => {
                 engine_core.update();
                 engine_core.render();
             },
+            
             _ => {},
         }
     })
